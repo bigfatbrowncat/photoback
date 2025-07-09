@@ -223,7 +223,7 @@ def backup_all_repos_from_dir_if_needed(repo_path_root: str, local_root_path: st
     total_count = 0
     old_dir = os.curdir
     try:
-        os.chdir(local_root_path)
+        if local_root_path != "": os.chdir(local_root_path)
         for dir in os.listdir("."):
             if os.path.isdir(dir):
                 repo_path = repo_path_root + "/" + dir
