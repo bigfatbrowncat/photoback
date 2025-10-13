@@ -79,14 +79,14 @@ def mkdir_or_false(sftp, path):
 
 def main():
     ap = argparse.ArgumentParser(description='Publisher script')
-    ap.add_argument('-y', '--year', required=False, type=int, help='Filtered year')
+    ap.add_argument('-y', '--year', required=False, type=str, help='Filtered year')
     ap.add_argument('-m', '--month', required=False, type=str, help='Filtered month (name or number)')
     ap.add_argument('-e', '--event', required=False, type=str, help='Filtered event')
     args = ap.parse_args()
 
     ssh = SSHClient()
     ssh.load_system_host_keys()
-    res = ssh.connect('lumiere')
+    res = ssh.connect(hostname='lumiere', username="app-runner")
 
     scpc = scp.SCPClient(ssh.get_transport())
 
@@ -96,6 +96,9 @@ def main():
 
     sftp = ssh.open_sftp()
     sftp.chdir('/var/server-apps/immich-app/photolab')
+    mkdir_or_false(sftp, MIDDAY)
+    mkdir_or_false(sftp, TWILIGHT)
+    mkdir_or_false(sftp, MIDNIGHT)
 
     for f in folders:
         if year_format.match(f):
