@@ -8,21 +8,27 @@ from paramiko import SSHClient
 from scp import SCPClient
 import scpclient
 import argparse
+import unicodedata
 
 
 def put_dir(sftp, source: str, dest: str):
     source = os.path.expandvars(source).rstrip('\\').rstrip('/')
+    # Let's normalize destination characters so ё and й are encoded in a single character
+    dest = unicodedata.normalize('NFC', dest)  # NFC - Composed
+
     dest = os.path.expandvars(dest).rstrip('\\').rstrip('/')
 
     for root, dirs, files in os.walk(source):
         for dir in dirs:
             try:
-                mkdir_or_false(sftp, os.path.join(dest, ''.join(root.rsplit(source))[1:], dir))
+                destdir = unicodedata.normalize('NFC', dir)
+                mkdir_or_false(sftp, os.path.join(dest, ''.join(root.rsplit(source))[1:], destdir))
             except Exception as e:
                 print(e)
                 pass
         for file in files:
-            sftp.put(os.path.join(root, file), os.path.join(dest, ''.join(root.rsplit(source))[1:], file))
+            destfile = unicodedata.normalize('NFC', file)
+            sftp.put(os.path.join(root, file), os.path.join(dest, ''.join(root.rsplit(source))[1:], destfile))
 
 
 
