@@ -1,6 +1,7 @@
 import requests
 import pprint
 from photolab_hash_collector import PhotolabHashCollector
+from photolab_hashes_compare import build_sync_algorithm
 
 class PhotolabSyncClient:
     def __init__(self, host: str, port: str):
@@ -29,15 +30,20 @@ class PhotolabSyncClient:
 if __name__ == "__main__":
     host = "localhost"
     port = "8080"
-    local_photolab_root = "/Users/Shared/photolab"
+    local_photolab_root = "/Users/il/Projects/photoback/photolab_sync/test_data/test_1_new_files_deleted_files/local"
 
     client = PhotolabSyncClient(host, port)
     server_hashes = client.collect_hashes()
-    pprint.pprint(server_hashes, width=300, indent=4, compact=False)
+    print(f"Total server hashes: {len(server_hashes)}")
 
     local_hash_collector = PhotolabHashCollector(local_photolab_root)
     local_hash_collector.collect()
     local_hashes = local_hash_collector.get_map()
-    pprint.pprint(local_hashes, width=300, indent=4, compact=False)
+    print(f"Total local hashes: {len(local_hashes)}")
 
-    print(server_hashes == local_hashes)
+    print("Building synchronizing algorithm")
+    sync_operations = build_sync_algorithm(local_hashes, server_hashes)
+    print()
+    print(f"The synchronizing algorithm containing {len(sync_operations)} operations built successfully:")
+    for op in sync_operations:
+        print(f" - {op}")
