@@ -1,5 +1,7 @@
 import requests
 
+from photolab.sync.unexpected_server_state import UnexpectedServerStateError
+
 # This is an Immich API client designed be
 # a bridge between Photolab and Immich, implementing the sync operations.
 class ImmichAPIClient:
@@ -26,7 +28,7 @@ class ImmichAPIClient:
             if album["albumName"] == album_name:
                 return album["id"]
 
-        raise Exception(f"Album '{album_name}' not found")
+        return None
 
     def _find_asset_id(self, image_path):
         search_endpoint = f"http://{self.host}:{self.port}/api/search/metadata"
@@ -42,11 +44,15 @@ class ImmichAPIClient:
 
         items = response.json()["assets"]["items"]
         if not items:
-            raise Exception(f"Asset '{image_path}' not found")
+            return None
 
         return items[0]["id"]
 
     def create_album(self, album_name):
+        existing_id = self._find_album_id(album_name)
+        if existing_id is not None:
+            raise UnexpectedServerStateError(f"Album '{album_name}' already exists")
+
         endpoint = f"http://{self.host}:{self.port}/api/albums"
 
         album_data = {
@@ -64,6 +70,12 @@ class ImmichAPIClient:
 
     def rename_album(self, old_name, new_name):
         album_id = self._find_album_id(old_name)
+        if album_id is None:
+            raise UnexpectedServerStateError(f"Album '{old_name}' not found")
+
+        new_album_preexisting_id = self._find_album_id(new_name)
+        if new_album_preexisting_id is not None:
+            raise UnexpectedServerStateError(f"Album '{new_name}' already exists")
 
         rename_endpoint = f"http://{self.host}:{self.port}/api/albums/{album_id}"
         album_data = {
@@ -81,6 +93,8 @@ class ImmichAPIClient:
 
     def delete_album(self, album_name):
         album_id = self._find_album_id(album_name)
+        if album_id is None:
+            raise UnexpectedServerStateError(f"Album '{album_name}' not found")
 
         delete_endpoint = f"http://{self.host}:{self.port}/api/albums/{album_id}"
         response = requests.delete(delete_endpoint, headers=self.headers)
@@ -94,7 +108,12 @@ class ImmichAPIClient:
 
     def add_image_to_album(self, album_name, image_path):
         album_id = self._find_album_id(album_name)
+        if album_id is None:
+            raise UnexpectedServerStateError(f"Album '{album_name}' not found")
+
         asset_id = self._find_asset_id(image_path)
+        if asset_id is None:
+            raise UnexpectedServerStateError(f"Asset '{image_path}' not found")
 
         add_endpoint = f"http://{self.host}:{self.port}/api/albums/{album_id}/assets"
         asset_data = {
@@ -111,7 +130,11 @@ class ImmichAPIClient:
 
     def remove_image_from_album(self, album_name, image_path):
         album_id = self._find_album_id(album_name)
+        if album_id is None:
+            raise UnexpectedServerStateError(f"Album '{album_name}' not found")
         asset_id = self._find_asset_id(image_path)
+        if asset_id is None:
+            raise UnexpectedServerStateError(f"Asset '{image_path}' not found")
 
         remove_endpoint = f"http://{self.host}:{self.port}/api/albums/{album_id}/assets"
         asset_data = {

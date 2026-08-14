@@ -10,7 +10,7 @@ from photolab.hash_collector import HashCollector
 #     {"id": 2, "name": "Bob", "role": "Designer"},
 # ]
 
-class PhotolabSyncServer:
+class Server:
     def __init__(self, photolab_root: str,
                  serving_host: str = "127.0.0.1",
                  serving_port: int = 8080):
@@ -97,5 +97,5 @@ if __name__ == "__main__":
     arg_parser.add_argument("-p", "--port", default=8080, help="Port to listen on")
     args = arg_parser.parse_args()
 
-    server = PhotolabSyncServer(photolab_root=args.photolab_root, serving_host=args.host, serving_port=int(args.port))
+    server = Server(photolab_root=args.photolab_root, serving_host=args.host, serving_port=int(args.port))
     server.run()

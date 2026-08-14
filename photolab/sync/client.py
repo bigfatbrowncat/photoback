@@ -5,7 +5,7 @@ import pprint
 from photolab.hash_collector import HashCollector
 from algorithm_builder import build_sync_algorithm
 
-class PhotolabSyncClient:
+class Client:
     def __init__(self, host: str, port: str):
         self.host = host
         self.port = port
@@ -37,7 +37,7 @@ if __name__ == "__main__":
     arg_parser.add_argument("-p", "--port", default=8080, help="Server port")
     args = arg_parser.parse_args()
 
-    client = PhotolabSyncClient(args.host, args.port)
+    client = Client(args.host, args.port)
     server_hashes = client.collect_hashes()
     print(f"Total server hashes: {len(server_hashes)}")
 
