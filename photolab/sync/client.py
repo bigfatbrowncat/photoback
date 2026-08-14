@@ -1,7 +1,9 @@
+import argparse
+
 import requests
 import pprint
-from photolab_hash_collector import PhotolabHashCollector
-from photolab_hashes_compare import build_sync_algorithm
+from photolab.hash_collector import HashCollector
+from algorithm_builder import build_sync_algorithm
 
 class PhotolabSyncClient:
     def __init__(self, host: str, port: str):
@@ -28,15 +30,18 @@ class PhotolabSyncClient:
             raise Exception("Failed to collect hashes")
 
 if __name__ == "__main__":
-    host = "localhost"
-    port = "8080"
-    local_photolab_root = "/Users/il/Projects/photoback/photolab_sync/test_data/test_1_new_files_deleted_files/local"
+    # Make 3 arguments. Host, port and photolab-root
+    arg_parser = argparse.ArgumentParser()
+    arg_parser.add_argument("photolab_root", help="Path to photolab root directory")
+    arg_parser.add_argument("--host", default="127.0.0.1", help="Server host address")
+    arg_parser.add_argument("-p", "--port", default=8080, help="Server port")
+    args = arg_parser.parse_args()
 
-    client = PhotolabSyncClient(host, port)
+    client = PhotolabSyncClient(args.host, args.port)
     server_hashes = client.collect_hashes()
     print(f"Total server hashes: {len(server_hashes)}")
 
-    local_hash_collector = PhotolabHashCollector(local_photolab_root)
+    local_hash_collector = HashCollector(args.photolab_root)
     local_hash_collector.collect()
     local_hashes = local_hash_collector.get_map()
     print(f"Total local hashes: {len(local_hashes)}")
