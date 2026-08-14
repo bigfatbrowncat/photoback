@@ -66,12 +66,6 @@ class AlbumHashNames:
     def get_pairs_for(self, event_name):
         return self.__data[event_name]
 
-    def event_contains_hash(self, event_name, hash):
-        for pair in self.__data[event_name]:
-            if pair[0] == hash:
-                return True
-        return False
-
 
 def extract_album_name(image_path: str):
     s = image_path.split("/")
@@ -96,15 +90,7 @@ def build_sync_algorithm(local_pairs, remote_pairs):
 
     # Step 1: Finding new files
     # Check what hashes exist in local_hashes, but not in remote_hashes
-    new_local_hashes = set()
-    for local_hash in remaining_local_pairs:
-        found = False
-        for remote_hash in remaining_remote_pairs:
-            if local_hash == remote_hash:
-                found = True
-                break
-        if not found:
-            new_local_hashes.add(local_hash)
+    new_local_hashes = remaining_local_pairs.keys() - remaining_remote_pairs.keys()
 
     print(f"New hashes count: {len(new_local_hashes)}")
 
@@ -120,15 +106,7 @@ def build_sync_algorithm(local_pairs, remote_pairs):
 
     # Step 2: Finding deleted files
     # Check what hashes exist in remote_hashes, but don't exist in local_hashes
-    deleted_remote_hashes = set()
-    for remote_hash in remaining_remote_pairs:
-        found = False
-        for local_hash in remaining_local_pairs:
-            if local_hash == remote_hash:
-                found = True
-                break
-        if not found:
-            deleted_remote_hashes.add(remote_hash)
+    deleted_remote_hashes = remaining_remote_pairs.keys() - remaining_local_pairs.keys()
     print(f"Deleted hashes count: {len(deleted_remote_hashes)}")
 
     # Adding DELETE operation for each deleted old file
@@ -157,47 +135,76 @@ def build_sync_algorithm(local_pairs, remote_pairs):
         if not found:
             remotes_missing_in_local.add(remote_event)
 
+    # Reverse index (hash -> local album) so that, for a remote album's pictures,
+    # the local album they ended up in can be looked up in O(1) instead of
+    # rescanning every local album's pictures for each one
+    local_album_by_hash = {hash: extract_album_name(path) for hash, path in local_pairs.items()}
+
     # For each remote missing in local, collecting list of local albums
-    # containing former pictures from this remote album
-    album_rename_operations = []
-    album_deletion_operations = []
-    renamed_albums = []
-    for missing_in_local in remotes_missing_in_local:
+    # containing former pictures from this remote album, and rating every
+    # such local album as a possible new name according to Levenshtein ratio.
+    # A local album is a rename candidate only if its name is free on remote:
+    # renaming into an already existing album would collide with it
+    rename_candidates = []
+    for missing_in_local in sorted(remotes_missing_in_local):
         local_events_containing_images_from_missing_remote = set()
         for pair_from_missing in remote_albums_pics.get_pairs_for(missing_in_local):
-            for local_event in local_event_names:
-                if local_albums_pics.event_contains_hash(local_event, pair_from_missing[0]):
-                    local_events_containing_images_from_missing_remote.add(local_event)
+            local_event = local_album_by_hash.get(pair_from_missing[0])
+            if local_event is not None:
+                local_events_containing_images_from_missing_remote.add(local_event)
 
-        # Looking for the successive (renamed from the original) album name.
-        # To choose the one, comparing the album names according to Levenshtein ratio
-        max_lratio = 0.0
-        max_name = None
         for successor_album in local_events_containing_images_from_missing_remote:
-            lratio = Levenshtein.ratio(successor_album, missing_in_local)
-            if lratio > max_lratio:
-                max_lratio = lratio
-                max_name = successor_album
+            if successor_album in remote_event_names:
+                continue
+            rename_candidates.append((Levenshtein.ratio(successor_album, missing_in_local),
+                                      missing_in_local,
+                                      successor_album))
 
-        if max_name is None:
+    # Picking the renames greedily, the best ratio first, so that no album is
+    # renamed twice and no two albums are renamed into the same target name.
+    # The names are a part of the sorting key to keep the result stable
+    rename_candidates.sort(key=lambda candidate: (-candidate[0], candidate[1], candidate[2]))
+    album_renames = dict()  # remote album name -> new (local) album name
+    taken_target_names = set()
+    for lratio, source_album, target_album in rename_candidates:
+        if source_album in album_renames or target_album in taken_target_names:
+            continue
+        album_renames[source_album] = target_album
+        taken_target_names.add(target_album)
+
+    album_rename_operations = []
+    for source_album in album_renames:
+        album_rename_operations.append(Operation(OperationType.RENAME_ALBUM, source_album, album_renames[source_album]))
+
+    # The remote albums missing in local that got no free successor name are deleted.
+    # Their surviving pictures are moved out one by one before the deletion
+    album_deletion_operations = []
+    for missing_in_local in sorted(remotes_missing_in_local):
+        if missing_in_local not in album_renames:
             album_deletion_operations.append(Operation(OperationType.DELETE_ALBUM, missing_in_local))
-        else:
-            album_rename_operations.append(Operation(OperationType.RENAME_ALBUM, missing_in_local, max_name))
-            renamed_albums.append(max_name)
 
-    # Adding single file movement operations for the files that are moved one by one, not by renaming the album
+    renamed_albums = list(album_renames.values())
+
+    # Adding single file movement operations for the files that are moved one by one, not by renaming the album.
+    # The album renames are applied to the remote paths first, since the renames are executed before the movements
     movement_operations = []
     for hash_to_move in moved_hashes:
-        if extract_album_name(remaining_local_pairs[hash_to_move]) not in renamed_albums:
-            movement_operations.append(Operation(OperationType.MOVE, remaining_remote_pairs[hash_to_move], remaining_local_pairs[hash_to_move]))
+        remote_path = remaining_remote_pairs[hash_to_move]
+        local_path = remaining_local_pairs[hash_to_move]
+        remote_album = extract_album_name(remote_path)
+        if remote_album in album_renames:
+            remote_path = album_renames[remote_album] + remote_path[len(remote_album):]
+        if remote_path != local_path:
+            movement_operations.append(Operation(OperationType.MOVE, remote_path, local_path))
 
 
     # Adding CREATE_ALBUM operation for each new file's album that is missing on remote and wasn't renamed
     album_creation_operations = []
+    created_albums = set()
     for local_hash in local_pairs.keys():
         local_image_path = local_pairs[local_hash]
         local_image_album = extract_album_name(local_image_path)
-        if not local_image_album in renamed_albums:
+        if not local_image_album in renamed_albums and not local_image_album in created_albums:
             if local_image_album in local_albums_pics.get_event_names():
                 found = False
                 for remote_album in remote_albums_pics.get_event_names():
@@ -206,11 +213,14 @@ def build_sync_algorithm(local_pairs, remote_pairs):
                         break
                 if not found:
                     album_creation_operations.append(Operation(OperationType.CREATE_ALBUM, local_image_album))
+                    created_albums.add(local_image_album)
 
 
+    # The order matters: the albums are renamed and created before the files are moved into them,
+    # and an old album is deleted only after its surviving files have been moved out of it
     return deletion_operations + \
-           album_deletion_operations + \
+           album_rename_operations + \
            album_creation_operations + \
            movement_operations + \
-           album_rename_operations + \
+           album_deletion_operations + \
            uploading_operations
