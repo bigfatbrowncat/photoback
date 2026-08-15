@@ -67,10 +67,13 @@ class AlbumHashNames:
         return self.__data[event_name]
 
 
-def extract_album_name(image_path: str):
+def extract_album_path(image_path: str):
     s = image_path.split("/")
     return s[0] + "/" + s[1] + "/" + s[2] + "/" + s[3]
 
+def extract_album_name(image_path: str):
+    s = image_path.split("/")
+    return s[2] + " — " + s[3]
 
 # Assuming the structure is a dict() where the key is a hash,
 # and the value is a tree to the file relative to the photolab root.
@@ -138,7 +141,7 @@ def build_sync_algorithm(local_pairs, remote_pairs):
     # Reverse index (hash -> local album) so that, for a remote album's pictures,
     # the local album they ended up in can be looked up in O(1) instead of
     # rescanning every local album's pictures for each one
-    local_album_by_hash = {hash: extract_album_name(path) for hash, path in local_pairs.items()}
+    local_album_by_hash = {hash: extract_album_path(path) for hash, path in local_pairs.items()}
 
     # For each remote missing in local, collecting list of local albums
     # containing former pictures from this remote album, and rating every
@@ -191,7 +194,7 @@ def build_sync_algorithm(local_pairs, remote_pairs):
     for hash_to_move in moved_hashes:
         remote_path = remaining_remote_pairs[hash_to_move]
         local_path = remaining_local_pairs[hash_to_move]
-        remote_album = extract_album_name(remote_path)
+        remote_album = extract_album_path(remote_path)
         if remote_album in album_renames:
             remote_path = album_renames[remote_album] + remote_path[len(remote_album):]
         if remote_path != local_path:
@@ -203,7 +206,7 @@ def build_sync_algorithm(local_pairs, remote_pairs):
     created_albums = set()
     for local_hash in local_pairs.keys():
         local_image_path = local_pairs[local_hash]
-        local_image_album = extract_album_name(local_image_path)
+        local_image_album = extract_album_path(local_image_path)
         if not local_image_album in renamed_albums and not local_image_album in created_albums:
             if local_image_album in local_albums_pics.get_event_names():
                 found = False

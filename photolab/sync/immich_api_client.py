@@ -48,6 +48,21 @@ class ImmichAPIClient:
 
         return items[0]["id"]
 
+    def _is_image_in_album(self, album_id, asset_id):
+        album_endpoint = f"http://{self.host}:{self.port}/api/albums/{album_id}"
+        response = requests.get(album_endpoint, headers=self.headers)
+
+        if not (200 <= response.status_code < 300):
+            print(f"Error: Server responded with status code {response.status_code}")
+            print(response.text)
+            raise Exception("Failed to get album")
+
+        for asset in response.json()["assets"]:
+            if asset["id"] == asset_id:
+                return True
+
+        return False
+
     def create_album(self, album_name):
         existing_id = self._find_album_id(album_name)
         if existing_id is not None:
@@ -115,6 +130,9 @@ class ImmichAPIClient:
         if asset_id is None:
             raise UnexpectedServerStateError(f"Asset '{image_path}' not found")
 
+        if not self._is_image_in_album(album_id, asset_id):
+            raise UnexpectedServerStateError(f"Asset '{image_path}' not found in album '{album_name}'")
+
         add_endpoint = f"http://{self.host}:{self.port}/api/albums/{album_id}/assets"
         asset_data = {
             "ids": [asset_id]
@@ -135,6 +153,10 @@ class ImmichAPIClient:
         asset_id = self._find_asset_id(image_path)
         if asset_id is None:
             raise UnexpectedServerStateError(f"Asset '{image_path}' not found")
+
+        # Checking that the picture is inside the album
+        if not self._is_image_in_album(album_id, asset_id):
+            raise UnexpectedServerStateError(f"Asset '{image_path}' not found in album '{album_name}'")
 
         remove_endpoint = f"http://{self.host}:{self.port}/api/albums/{album_id}/assets"
         asset_data = {
