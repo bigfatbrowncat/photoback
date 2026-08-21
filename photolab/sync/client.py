@@ -1,5 +1,6 @@
 import argparse
 import os
+from urllib.parse import quote
 
 import requests
 from photolab.hash_collector import HashCollector
@@ -36,8 +37,10 @@ class Client:
     def upload(self, file_path: str):
         endpoint = f"http://{self.host}:{self.port}/api/upload"
         with open(os.path.join(self.photolab_root, file_path), "rb") as f:
+            # Header values are latin-1 only (RFC 7230), so percent-encode the UTF-8 path
+            # to keep non-ASCII characters safe; the server decodes it back with unquote
             response = requests.post(endpoint, data=f.read(),
-                                     headers={**self.headers, "x-file-path": file_path})
+                                     headers={**self.headers, "x-file-path": quote(file_path, safe="/")})
 
         if 200 <= response.status_code < 300:
             print(f"Uploaded: {file_path}")

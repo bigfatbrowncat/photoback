@@ -1,7 +1,7 @@
 import argparse
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 from photolab.hash_collector import HashCollector
 from photolab.sync.algorithm_builder import extract_album_name
@@ -69,6 +69,8 @@ class ServerRequestHandler(BaseHTTPRequestHandler):
         album_path = json_request.get("album_path")
         if not album_path:
             raise ValueError("Missing album_path in JSON request")
+        # The client percent-encodes non-ASCII characters in the path
+        album_path = unquote(album_path)
 
         try:
             album_name = extract_album_name(album_path)
@@ -83,6 +85,9 @@ class ServerRequestHandler(BaseHTTPRequestHandler):
         file_path = self.headers.get("x-file-path")
         if not file_path:
             raise ValueError("Missing x-file-path header")
+        # Header values are latin-1 only (RFC 7230), so the client percent-encodes
+        # non-ASCII characters; decode them back to UTF-8
+        file_path = unquote(file_path)
 
         contents = self.body
 
