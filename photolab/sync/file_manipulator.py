@@ -52,7 +52,7 @@ class FileManipulator:
             raise UnexpectedServerStateError(f"Directory '{dir_path}' already exists")
 
         # TODO Wrap this into try
-        os.mkdir(dir_path)
+        os.makedirs(dir_path, exist_ok=False)
 
     def delete_dir(self, dir_path):
         dir_path = os.path.join(self.photolab_dir, dir_path)

@@ -139,7 +139,7 @@ class Server:
 
 def main():
     arg_parser = argparse.ArgumentParser()
-    arg_parser.add_argument("photolab_root", help="Path to photolab root directory")
+    arg_parser.add_argument("--photolab-root", help="Path to photolab root directory")
     arg_parser.add_argument("--host", default="127.0.0.1", help="Host to listen on")
     arg_parser.add_argument("-p", "--port", type=int, default=8080, help="Port to listen on")
     arg_parser.add_argument("--immich-host", default="127.0.0.1", help="Immich instance to control")
