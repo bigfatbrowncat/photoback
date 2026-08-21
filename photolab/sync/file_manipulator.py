@@ -13,6 +13,9 @@ class FileManipulator:
         if os.path.exists(file_path):
             raise UnexpectedServerStateError(f"File '{file_path}' already exists")
 
+        # The intermediate directories of a new album may not exist on the server yet
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
         with open(file_path, "wb") as f:
             f.write(contents)
 
@@ -51,8 +54,11 @@ class FileManipulator:
         if os.path.exists(dir_path):
             raise UnexpectedServerStateError(f"Directory '{dir_path}' already exists")
 
-        # TODO Wrap this into try
-        os.makedirs(dir_path, exist_ok=False)
+        try:
+            # Creates missing intermediate directories (year/month, etc.) as well
+            os.makedirs(dir_path, exist_ok=False)
+        except FileExistsError:
+            raise UnexpectedServerStateError(f"Directory '{dir_path}' already exists")
 
     def delete_dir(self, dir_path):
         dir_path = os.path.join(self.photolab_dir, dir_path)
